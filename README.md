@@ -34,7 +34,9 @@ on the deployed site.
 
 ## Deploy
 
-Netlify publishes `site/` as is (`netlify.toml`). Manual deploy:
+Live at https://maps64.com (Netlify site `maps64`, repo `nijemeis/maps64-website`).
+Every push to `main` deploys automatically; Netlify publishes `site/` as is
+(`netlify.toml`). A manual deploy from this folder also works:
 
 ```bash
 npx netlify-cli deploy --prod --dir site
