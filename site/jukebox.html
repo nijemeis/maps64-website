@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1510">
+<title>Maps 64 Jukebox</title>
+<meta name="description" content="The Maps 64 soundtrack: three themes, four arrangements each, played live by the game's own chip synth.">
+<meta property="og:title" content="Maps 64 Jukebox">
+<meta property="og:description" content="Three themes, four arrangements each, played live by the game's own chip synth.">
+<meta property="og:image" content="https://maps64.com/icons/icon-512.png">
+<meta property="og:url" content="https://maps64.com/jukebox.html">
+<link rel="canonical" href="https://maps64.com/jukebox.html">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/pixelify-400.woff2" as="font" type="font/woff2" crossorigin>
+<script src="audio.js"></script>
+<style>
+@font-face{font-family:"Pixelify Sans";font-weight:400;font-display:swap;src:url(fonts/pixelify-400.woff2) format("woff2")}
+@font-face{font-family:"Pixelify Sans";font-weight:500;font-display:swap;src:url(fonts/pixelify-500.woff2) format("woff2")}
+:root{
+  --bg:#0d1510;--bg2:#15241a;--line:#2b4630;--frame:#2c4e30;--frame2:#18301d;
+  --text:#e3eed6;--muted:#93a88a;--faint:#62775b;--acc:#9ad26a;--acc-2:#c4ec9b;--acc-deep:#35602a;--gold:#f0dc5a;--sea:#1e3a6c;--sea-hi:#2c5395;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100dvh;background:radial-gradient(120% 90% at 20% 0%,var(--bg2),var(--bg) 65%);color:var(--text);font-family:"Pixelify Sans",ui-monospace,monospace;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 40px max(16px,env(safe-area-inset-left));-webkit-tap-highlight-color:transparent}
+a{color:var(--acc)} a:hover{color:var(--acc-2)}
+button{font-family:inherit;cursor:pointer}
+:focus{outline:none} :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+main{max-width:720px;margin:0 auto}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{font-size:18px;font-weight:500;text-decoration:none;color:var(--text)}
+.play-game{font-size:14px;text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.play-game:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+
+.deck{border-radius:14px;padding:clamp(6px,1.4vw,14px);background:linear-gradient(160deg,var(--frame),var(--frame2));box-shadow:0 0 0 1px var(--line),0 16px 40px rgba(0,0,0,.5);margin-bottom:28px}
+.screen{position:relative;border-radius:4px;background:var(--sea);overflow:hidden;aspect-ratio:16/6}
+#scope{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+.np{position:absolute;left:4%;top:12%;right:4%;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.np .k{font-size:clamp(9px,1.8vw,12px);color:var(--acc);letter-spacing:.12em;text-transform:uppercase}
+.np .t{font-size:clamp(20px,5.4vw,40px);font-weight:500;line-height:1.05;text-shadow:3px 3px 0 #10230c}
+.np .m{font-size:clamp(10px,2vw,14px);color:var(--acc-2);text-align:right;white-space:nowrap}
+.pos{position:absolute;left:4%;right:4%;bottom:10%;display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.pos i{height:clamp(4px,1vw,8px);background:var(--frame2);border-radius:1px}
+.pos i.on{background:var(--gold)}
+
+h1{font-weight:500;font-size:clamp(28px,7vw,44px);margin:0 0 6px;line-height:1}
+.lead{color:var(--muted);margin:0 0 22px;line-height:1.45;max-width:52ch}
+h2{font-weight:500;font-size:20px;margin:26px 0 2px}
+.setdesc{font-size:13px;color:var(--faint);margin:0 0 10px}
+ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:color-mix(in srgb,var(--frame2) 80%,transparent)}
+li.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--frame2))}
+.play{width:48px;height:48px;border-radius:50%;border:1px solid var(--acc);background:transparent;color:var(--acc);font-size:16px;display:grid;place-items:center}
+.play:hover{background:color-mix(in srgb,var(--acc) 12%,transparent)}
+li.on .play{background:var(--acc);color:var(--bg)}
+.name{font-size:19px;font-weight:500}
+.meta{font-size:13px;color:var(--faint);margin-top:2px}
+.use{font-size:12px;color:var(--acc);background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 9px;white-space:nowrap}
+.use:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.use[aria-pressed="true"]{color:var(--bg);background:var(--acc);border-color:var(--acc);cursor:default}
+.foot{margin-top:30px;font-size:13px;color:var(--faint);line-height:1.5}
+@media (max-width:480px){ li{grid-template-columns:44px minmax(0,1fr);row-gap:8px} .play{width:44px;height:44px} .use{grid-column:2;justify-self:start} }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><a class="brand" href="./">MAPS 64</a><a class="play-game" href="./">▶ Play the game</a></div>
+
+  <div class="deck"><div class="screen">
+    <canvas id="scope" width="320" height="120" aria-hidden="true"></canvas>
+    <div class="np"><div><div class="k" id="npK">Jukebox</div><div class="t" id="npT">Pick a tune</div></div><div class="m" id="npM"></div></div>
+    <div class="pos" id="pos"></div>
+  </div></div>
+
+  <h1>Jukebox</h1>
+  <p class="lead">The Maps 64 soundtrack: three themes with four arrangements each. The game's own chip synth plays them live in your browser. Pick one to use in the game.</p>
+  <div id="sets"></div>
+
+  <p class="foot">Space plays or stops · ↑/↓ previous/next tune<br>All music is original and synthesised in the browser. Inspired by the sound of the C64.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const DESC = {
+  theme:'The original title tune', cloud:'Bright and bouncy · C major', night:'Slow and moody · D minor, echo lead', mirage:'Desert flavour · E phrygian, hand drums',
+  compass:'The second theme · G major, heroic', tradewinds:'Laid back · offbeat stabs, walking bass', aurora:'The theme in 3/4 · gentle, with an echo', storm:'The theme in G minor · pushing and dark',
+  sunny:'The third theme · D major, bright', drizzle:'Singing in the rain · F major, walking bass', breeze:'Light and skipping · G major, flute lead, wind gusts', thunder:'Thunderstorm · D dorian, rumbles and rain',
+};
+const C = Object.fromEntries(['sea','sea-hi','acc','acc-2','gold','frame2'].map(k=>[k, getComputedStyle(document.documentElement).getPropertyValue('--'+k).trim()]));
+let playing = -1, analyser = null;
+const rows = [];
+
+SETS.forEach(set => {
+  const wrap = document.createElement('section');
+  wrap.innerHTML = `<h2>${set.name}</h2><p class="setdesc">${set.desc}</p><ol></ol>`;
+  const ol = wrap.querySelector('ol');
+  TUNES.forEach((t, i) => {
+    if (t.set !== set.id) return;
+    const spb = t.spb || 16, secs = Math.round(t.mel.length * spb * 60 / t.bpm / 4);
+    const li = document.createElement('li');
+    li.innerHTML = `<button class="play" aria-label="Play ${t.name}">▶</button>
+      <div><div class="name">${t.name}</div><div class="meta">${DESC[t.id] || ''} · ${t.bpm} bpm${spb===12?' · 3/4':''} · ${secs}s loop</div></div>
+      <button class="use" aria-pressed="false">Use in game</button>`;
+    li.querySelector('.play').onclick = () => toggle(i);
+    li.querySelector('.use').onclick = () => { try { localStorage.setItem('maps64.music', t.id); } catch(e){} paintUse(); };
+    rows[i] = li; ol.appendChild(li);
+  });
+  $('sets').appendChild(wrap);
+});
+function paintUse(){
+  let cur = null; try { cur = localStorage.getItem('maps64.music') || 'theme'; } catch(e){}
+  TUNES.forEach((t, i) => { const b = rows[i].querySelector('.use'), on = t.id === cur; b.setAttribute('aria-pressed', on); b.textContent = on ? '✓ In the game' : 'Use in game'; });
+}
+paintUse();
+
+function toggle(i){
+  Snd.on = true; Snd.init();  // always audible here, without changing the game's sound setting
+  if (Snd.master) Snd.master.gain.value = .55;
+  if (!analyser && Snd.ac){ analyser = Snd.ac.createAnalyser(); analyser.fftSize = 1024; Snd.mus.connect(analyser); }
+  Snd.stopMusic();
+  if (playing === i) playing = -1;
+  else { playing = i; Snd.musicOff = false; Snd.tuneIx = i; Snd.startMusic(); }
+  rows.forEach((li, j) => { li.classList.toggle('on', j === playing); li.querySelector('.play').textContent = j === playing ? '■' : '▶'; li.querySelector('.play').setAttribute('aria-label', (j === playing ? 'Stop ' : 'Play ') + TUNES[j].name); });
+  const t = TUNES[playing];
+  $('npK').textContent = t ? 'Now playing · ' + SETS.find(s => s.id === t.set).name : 'Jukebox';
+  $('npT').textContent = t ? t.name : 'Pick a tune';
+  $('npM').textContent = t ? t.bpm + ' BPM' : '';
+  $('pos').innerHTML = t ? '<i></i>'.repeat(t.mel.length) : '';
+}
+addEventListener('keydown', e => {
+  const n = TUNES.length;
+  if (e.key === ' '){ e.preventDefault(); toggle(playing >= 0 ? playing : 0); }
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); const d = e.key === 'ArrowDown' ? 1 : -1; toggle(playing < 0 ? (d > 0 ? 0 : n - 1) : (playing + d + n) % n); }
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden && playing >= 0) toggle(playing); });
+
+// pixel oscilloscope over the sea, plus the bar the tune is on
+const cv = $('scope'), g = cv.getContext('2d'), W = cv.width, H = cv.height, buf = new Float32Array(1024);
+(function draw(t){
+  g.fillStyle = C.sea; g.fillRect(0, 0, W, H);
+  g.fillStyle = C['sea-hi'];
+  for (let y = 10; y < H; y += 16) for (let x = ((y / 16) % 2) * 12 + ((t / 90) | 0) % 24 - 24; x < W; x += 24) { g.fillRect(x, y, 3, 1); g.fillRect(x + 3, y - 1, 3, 1); g.fillRect(x + 6, y, 3, 1); }
+  const mid = H * .62;
+  if (analyser && playing >= 0){
+    analyser.getFloatTimeDomainData(buf);
+    let start = 0; for (let i = 1; i < 512; i++) if (buf[i - 1] < 0 && buf[i] >= 0){ start = i; break; }
+    g.fillStyle = C.acc;
+    for (let x = 0; x < W; x += 2){ const v = buf[start + Math.floor(x / W * 480)] || 0; const y = Math.round((mid - v * H * 1.6) / 2) * 2; g.fillRect(x, y, 2, 2); }
+    if (Snd.timer){ const bar = Math.floor(Snd.step / Snd.spb); [...$('pos').children].forEach((b, j) => b.classList.toggle('on', j === bar)); }
+  } else { g.fillStyle = C.frame2; for (let x = 0; x < W; x += 2) g.fillRect(x, mid, 2, 2); }
+  requestAnimationFrame(draw);
+})(0);
+</script>
+</body>
+</html>

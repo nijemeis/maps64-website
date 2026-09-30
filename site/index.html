@@ -22,6 +22,7 @@
 <link rel="preload" href="fonts/pixelify-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="vendor/countries-50m.json" as="fetch" crossorigin>
 <script src="vendor/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i"></script>
+<script src="audio.js"></script>
 <script src="vendor/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67"></script>
 <style>
 @font-face{font-family:"Pixelify Sans";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/pixelify-400.woff2) format("woff2")}
@@ -48,7 +49,9 @@ button{font-family:var(--px)}
 .legend{display:flex;gap:12px;align-items:center;margin-left:auto;font-size:12px;color:var(--muted);flex-wrap:wrap}
 .legend span{display:inline-flex;gap:4px;align-items:center}
 kbd{font-family:var(--px);font-size:11px;min-width:18px;height:18px;padding:0 4px;display:inline-grid;place-items:center;border-radius:4px;color:var(--text);box-shadow:inset 0 0 0 1px var(--line);background:var(--frame2)}
-.toggles{display:flex;gap:6px;align-items:center}
+.toggles{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.toggles .tb,.seg{white-space:nowrap;flex:none}
+.tb.jb{text-decoration:none;display:inline-block}
 .tb{font-size:12px;color:var(--acc);background:transparent;border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer}
 .tb:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
 .tb:active{background:color-mix(in srgb,var(--acc) 20%,transparent)}
@@ -146,6 +149,7 @@ body.touch .pad{display:flex}
   body.touch .legend{display:none}
 }
 @media (max-width:760px){.legend{display:none}}
+@media (max-width:480px){.brand small,.tb .pre{display:none}}
 @media (orientation:landscape) and (max-height:520px){
   .bar{padding:4px max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));gap:10px}
   .brand small,.legend{display:none}
@@ -163,11 +167,14 @@ body.touch .pad{display:flex}
       <span><kbd>SPACE</kbd> ok</span>
       <span><kbd>P</kbd> pause</span>
       <span><kbd>M</kbd> sound</span>
+      <span><kbd>N</kbd> music</span>
     </div>
     <div class="toggles">
       <div class="seg" id="zoomSeg"><span>MAP</span><button data-z="3">3×</button><button data-z="5">5×</button><button data-z="8">8×</button></div>
       <button class="tb" id="bSound" aria-pressed="true">Sound on</button>
+      <button class="tb" id="bMusic" aria-pressed="true" title="Change the music (N)"><span class="pre">Music: </span><span id="bMusicName">Maps 64 Theme</span></button>
       <button class="tb" id="bTouch" aria-pressed="false">Touch pad</button>
+      <a class="tb jb" href="jukebox.html">Jukebox</a>
     </div>
   </header>
   <main class="cabinet">
@@ -270,69 +277,7 @@ const LEVELS = [
 ];
 const ROUNDS = 8, MAXV = 95, HIT_R = 10;
 
-/* ---------- AUDIO ---------- */
-const NOTE = n => { const m = n.match(/^([A-G])(#?)(\d)$/); const i = {C:-9,D:-7,E:-5,F:-4,G:-2,A:0,B:2}[m[1]] + (m[2]?1:0) + (m[3]-4)*12; return 440*Math.pow(2,i/12); };
-const MEL = ['E5 . . . A5 . . . G5 . E5 . C5 . D5 .','C5 . . . A4 . . . C5 . F5 . E5 . C5 .','E5 . . . G5 . . . C6 . . . B5 . G5 .','D5 . . . . . . . B4 . D5 . G5 . . .','A5 . . . E5 . A5 . C6 . B5 . A5 . G5 .','F5 . . . A5 . . . C6 . A5 . F5 . E5 .','D5 . G5 . B5 . D6 . B5 . G5 . D5 . B4 .','G#5 . . . . . . . E5 . . . - - - -'].join(' ').split(' ');
-const CHORDS = [['A3','C4','E4'],['F3','A3','C4'],['C4','E4','G4'],['G3','B3','D4'],['A3','C4','E4'],['F3','A3','C4'],['G3','B3','D4'],['E3','G#3','B3']];
-const STEP = 60/150/4;
-const Snd = {
-  ac:null, on: localStorage.getItem('maps64.sound') !== 'off',
-  init(){
-    if (this.ac) { if (this.ac.state !== 'running') this.ac.resume().catch(()=>{}); return; }
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    const ac = this.ac = new AC();
-    this.master = ac.createGain(); this.master.gain.value = this.on ? .55 : 0; this.master.connect(ac.destination);
-    this.mus = ac.createGain(); this.mus.gain.value = .5; this.mus.connect(this.master);
-    this.sfx = ac.createGain(); this.sfx.gain.value = .8; this.sfx.connect(this.master);
-    this.pw = {}; [.125,.25,.5].forEach(d => { const n=32, re=new Float32Array(n), im=new Float32Array(n); for (let k=1;k<n;k++) re[k]=2/(k*Math.PI)*Math.sin(k*Math.PI*d); this.pw[d]=ac.createPeriodicWave(re,im); });
-    const b = this.noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = b.getChannelData(0); for (let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
-    const src = ac.createBufferSource(); src.buffer=b; src.loop=true;
-    const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=520;
-    const chop = ac.createGain(); chop.gain.value=.5;
-    this.lfo = ac.createOscillator(); this.lfo.type='square'; this.lfo.frequency.value=13;
-    const lg = ac.createGain(); lg.gain.value=.5; this.lfo.connect(lg).connect(chop.gain);
-    this.rot = ac.createGain(); this.rot.gain.value=0;
-    src.connect(lp).connect(chop).connect(this.rot).connect(this.sfx); src.start(); this.lfo.start();
-    if (this.wantMusic) this.startMusic();
-  },
-  setOn(v){ this.on=v; localStorage.setItem('maps64.sound', v?'on':'off'); if (this.master) this.master.gain.setTargetAtTime(v?.55:0, this.ac.currentTime, .02); },
-  tone(f, t, d, {w=.25, vol=.1, bus, slide}={}){
-    const ac=this.ac; if(!ac) return; const o=ac.createOscillator();
-    if (typeof w === 'number') o.setPeriodicWave(this.pw[w]); else o.type=w;
-    o.frequency.setValueAtTime(f,t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t+d);
-    const g=ac.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005); g.gain.setValueAtTime(vol,t+Math.max(.006,d*.6)); g.gain.linearRampToValueAtTime(0,t+d);
-    o.connect(g).connect(bus||this.sfx); o.start(t); o.stop(t+d+.02);
-  },
-  noise(t, d, {vol=.2, f=1800, bus}={}){
-    const ac=this.ac; if(!ac) return; const s=ac.createBufferSource(); s.buffer=this.noiseBuf;
-    const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f; bp.Q.value=.8;
-    const g=ac.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.001,t+d);
-    s.connect(bp).connect(g).connect(bus||this.sfx); s.start(t, Math.random()*.5); s.stop(t+d+.02);
-  },
-  now(){ return this.ac ? this.ac.currentTime : 0; },
-  blip(){ this.tone(990, this.now(), .045, {w:.5, vol:.06}); },
-  pass(){ this.tone(1480, this.now(), .04, {w:.125, vol:.04}); },
-  ok(){ const t=this.now(); this.tone(660,t,.05,{w:.5,vol:.07}); this.tone(1320,t+.05,.08,{w:.5,vol:.07}); },
-  back(){ const t=this.now(); this.tone(660,t,.05,{w:.5,vol:.06}); this.tone(440,t+.05,.07,{w:.5,vol:.06}); },
-  correct(){ const t=this.now(); ['C5','E5','G5','C6','G5','C6'].forEach((n,i)=>this.tone(NOTE(n),t+i*.065,.09,{w:.25,vol:.1})); },
-  wrong(){ const t=this.now(); this.tone(196,t,.14,{w:'sawtooth',vol:.07}); this.tone(147,t+.14,.26,{w:'sawtooth',vol:.07,slide:98}); },
-  timeout(){ const t=this.now(); this.noise(t,.5,{vol:.25,f:600}); this.tone(392,t,.5,{w:.5,vol:.06,slide:98}); },
-  tick(){ this.tone(1760, this.now(), .03, {w:.5, vol:.05}); },
-  beep(hi){ this.tone(hi?880:440, this.now(), hi?.22:.12, {w:.25, vol:.1}); },
-  fanfare(good){ const t=this.now(); const seq = good ? ['C5','C5','G5','E5','C6','.','G5','C6'] : ['E4','D#4','D4','C#4']; seq.forEach((n,i)=>{ if(n!=='.') this.tone(NOTE(n), t+i*.12, good&&i===seq.length-1?.5:.13, {w:.25,vol:.1}); }); },
-  rotor(level, rate){ if(!this.ac) return; const t=this.ac.currentTime; this.rot.gain.setTargetAtTime(level, t, .08); this.lfo.frequency.setTargetAtTime(rate, t, .1); },
-  startMusic(){ this.wantMusic=true; if(!this.ac || this.timer) return; this.step=0; this.nextT=this.ac.currentTime+.08; this.timer=setInterval(()=>this.sched(),25); },
-  stopMusic(){ this.wantMusic=false; clearInterval(this.timer); this.timer=null; },
-  sched(){ while (this.nextT < this.ac.currentTime + .12) { this.play(this.step, this.nextT); this.nextT += STEP; this.step = (this.step+1) % 128; } },
-  play(s, t){
-    const bar = s>>4, pos = s&15, ch = CHORDS[bar], M = this.mus;
-    this.tone(NOTE(ch[pos%3])*2, t, STEP*.9, {w:.125, vol:.03, bus:M});
-    if (pos%2===0) this.tone(NOTE(ch[0])/(pos%4===0?2:1), t, STEP*1.7, {w:'triangle', vol:.2, bus:M});
-    if (pos%4===0) this.tone(150, t, .09, {w:'sine', vol:.22, bus:M, slide:45});
-    if (pos%8===4) this.noise(t, .09, {vol:.12, f:2600, bus:M});
-    const tk = MEL[s]; if (tk!=='.' && tk!=='-') { let len=1; while (MEL[(s+len)%128]==='.') len++; this.tone(NOTE(tk), t, STEP*len*.95, {w:.25, vol:.075, bus:M}); }
-  },
-};
+/* ---------- AUDIO: Snd, NOTE and the tunes live in audio.js ---------- */
 
 /* ---------- MAP (pixel-block rendering) ---------- */
 let feats, byName, meshAll;
@@ -583,6 +528,7 @@ const MENU_STATES = ['scope','ccont','region','level','over','pause'];
 function action(a){
   Snd.init();
   if (a==='sound'){ toggleSound(); return; }
+  if (a==='music'){ nextMusic(); return; }
   if (state==='boot') return;
   if (state==='title'){ Snd.startMusic(); Snd.ok(); goScope(); return; }
   if (menu && MENU_STATES.includes(state)){
@@ -607,6 +553,7 @@ addEventListener('keydown', e=>{
   else if (k==='escape'||k==='backspace') action('back');
   else if (k==='p') action('pause');
   else if (k==='m') action('sound');
+  else if (k==='n') action('music');
   else if (state==='title') action('fire');
 });
 addEventListener('keyup', e=>{ const d=KMAP[e.key.toLowerCase()]; if (d) keys[d]=0; });
@@ -627,14 +574,18 @@ document.querySelectorAll('.pb').forEach(b=>{
   const up = ()=>{ b.classList.remove('on'); if (keys[k]!==undefined) keys[k]=0; };
   b.addEventListener('pointerdown', down); ['pointerup','pointerleave','pointercancel'].forEach(t=>b.addEventListener(t, up));
 });
-const bSound=document.getElementById('bSound'), bTouch=document.getElementById('bTouch'), zoomSeg=document.getElementById('zoomSeg');
+const bSound=document.getElementById('bSound'), bMusic=document.getElementById('bMusic'), bTouch=document.getElementById('bTouch'), zoomSeg=document.getElementById('zoomSeg');
 function toggleSound(){ Snd.init(); Snd.setOn(!Snd.on); paintToggles(); }
+// next tune (or off); outside a flight it starts playing right away so you can hear it
+function nextMusic(){ Snd.init(); Snd.nextTune(); if (!['play','count','reveal'].includes(state) && !Snd.wantMusic) Snd.startMusic(); paintToggles(); }
 function paintToggles(){
   bSound.textContent = Snd.on?'Sound on':'Sound off'; bSound.setAttribute('aria-pressed', Snd.on);
+  document.getElementById('bMusicName').textContent = (Snd.tune ? '♪ ' : '')+Snd.tuneName(); bMusic.setAttribute('aria-pressed', !!Snd.tune);
   bTouch.setAttribute('aria-pressed', document.body.classList.contains('touch'));
   zoomSeg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', +b.dataset.z===ZOOM));
 }
 bSound.onclick = ()=>{ toggleSound(); bSound.blur(); };
+bMusic.onclick = ()=>{ nextMusic(); bMusic.blur(); };
 bTouch.onclick = ()=>{ document.body.classList.toggle('touch'); localStorage.setItem('maps64.touch', document.body.classList.contains('touch')?'1':'0'); paintToggles(); bTouch.blur(); };
 zoomSeg.querySelectorAll('button').forEach(b=>b.onclick=()=>{ ZOOM=+b.dataset.z; localStorage.setItem('maps64.zoom', ZOOM); paintToggles(); b.blur(); if (state==='brief') goBrief(); });
 const tp = localStorage.getItem('maps64.touch');

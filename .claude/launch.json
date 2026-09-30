@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "maps64", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8064", "--directory", "/Users/nijemeisland/Public/Maps64/site"], "port": 8064 }
+    { "name": "maps64", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8064", "--directory", "/Users/nijemeisland/Public/Maps64"], "port": 8064 }
   ]
 }

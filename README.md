@@ -11,7 +11,9 @@ design tokens and data sources are documented there).
 
 ```
 site/                  the published website (no build step)
-  index.html           the whole game: HTML + CSS + JS
+  index.html           the game: HTML + CSS + JS
+  audio.js             chip synth, sound effects and the 12 menu tunes (3 themes × 4 arrangements)
+  jukebox.html         the Jukebox page: listen to every tune and pick one for the game
   data/regions-XX.json province/state lines per country
   vendor/              d3 7.9.0, topojson-client 3.1.0, world-atlas 2.0.2 countries-50m
   fonts/               Pixelify Sans 400/500 (SIL OFL, see fonts/OFL.txt)
@@ -28,7 +30,7 @@ tools/make-icons.py    rebuilds the icons from the in-game helicopter sprite (ne
 python3 -m http.server 8064 --directory site
 ```
 
-Then open http://localhost:8064. It must be served over http(s); `file://` blocks the
+Then open http://localhost:8064 (the jukebox is at /jukebox.html). It must be served over http(s); `file://` blocks the
 data fetches. The service worker only registers on https, so offline mode is tested
 on the deployed site.
 
@@ -53,3 +55,17 @@ npx netlify-cli deploy --prod --dir site
 - Compact layout for phones in landscape (smaller top bar, notch-safe padding).
 - Audio unlocks on the first touch/click/key anywhere, resumes after iOS
   interruptions, and pauses when the app goes to the background.
+
+## Music
+
+All music is original and synthesised live by `site/audio.js`; there are no audio files.
+Tunes are data in `TUNES` (melody per bar, chords, arrangement options, drum patterns and
+weather effects); the format is documented at the top of the file. `SETS` groups them:
+
+- **Heli Theme**: Maps 64 Theme, Cloud Hopper, Night Flight, Mirage
+- **Compass Theme**: Compass, Trade Winds, Aurora Waltz (3/4), Storm Front
+- **Weather Theme**: Sunny Spells, Drizzle (rain), Fresh Breeze (wind), Thunderhead (thunder and rain)
+
+Players pick a tune with the Music button or `N` in the game, or with "Use in game" on the
+Jukebox page (stored as `maps64.music`). Music plays in the menus, not during flights.
+When changing the files the service worker precaches, bump `CACHE` in `site/sw.js`.
