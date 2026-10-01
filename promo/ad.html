@@ -239,8 +239,12 @@ function videoText(t){
   const hudA = 1 - ramp(t, T.card, .3);
   if (hudA > 0){
     const hx = wide ? 4 * U : 6 * U, hy = top + 4 * U, hw = w - hx * 2;
-    const g = ctx.createLinearGradient(0, top, 0, hy + 16 * U); g.addColorStop(0, 'rgba(13,21,16,.92)'); g.addColorStop(.7, 'rgba(13,21,16,.75)'); g.addColorStop(1, 'rgba(13,21,16,0)');
-    ctx.globalAlpha = hudA; ctx.fillStyle = g; ctx.fillRect(0, top, w, hy + 16 * U - top); ctx.globalAlpha = 1;
+    // the bar runs from the very top edge; on Stories its text sits below the zone the app's own UI covers
+    const g = ctx.createLinearGradient(0, 0, 0, hy + 16 * U); g.addColorStop(0, 'rgba(13,21,16,.94)'); g.addColorStop((hy + 9 * U) / (hy + 16 * U), 'rgba(13,21,16,.85)'); g.addColorStop(1, 'rgba(13,21,16,0)');
+    ctx.globalAlpha = hudA;
+    if (L.kind === 'story'){ ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, hy + 11 * U); ctx.fillStyle = C.line; ctx.fillRect(0, hy + 11 * U, w, Math.round(.5 * U)); }
+    else { ctx.fillStyle = g; ctx.fillRect(0, 0, w, hy + 16 * U); }
+    ctx.globalAlpha = 1;
     const showT = ramp(t, .15, .25);
     textAt('FLY TO', hx, hy, Math.round(2.6 * U), C.acc, {alpha: hudA * showT});
     textAt(TARGET.toUpperCase(), hx, hy + 3.6 * U, Math.round(7 * U), C.text, {alpha: hudA * showT, shadow: Math.max(1, .5 * U)});
@@ -249,6 +253,10 @@ function videoText(t){
     textAt(String(sc).padStart(5, '0'), hx + hw, hy + 3.6 * U, Math.round(4.6 * U), C.text, {align:'right', alpha: hudA});
     // fuel blocks along the bottom of the play area
     const fy = (L.kind === 'story' ? h * .74 : h - 6 * U), fw = hw, bw = fw / 20, left = t < T.fly0 ? 20 : Math.max(6, Math.ceil(20 - (Math.min(t, T.hit) - T.fly0) / (T.hit - T.fly0) * 14));
+    if (L.kind === 'story'){  // fuel panel runs to the bottom edge; the blocks stay above the app's buttons
+      ctx.globalAlpha = hudA; ctx.fillStyle = C.bg; ctx.fillRect(0, fy - 6 * U, w, h - fy + 6 * U);
+      ctx.fillStyle = C.line; ctx.fillRect(0, fy - 6 * U - Math.round(.5 * U), w, Math.round(.5 * U));
+    }
     ctx.globalAlpha = hudA;
     textAt('FUEL', hx, fy - 3.4 * U, Math.round(2.4 * U), C.acc, {alpha: hudA});
     for (let i = 0; i < 20; i++){ ctx.fillStyle = i < left ? C.acc : C.frame2; ctx.fillRect(Math.round(hx + i * bw), Math.round(fy), Math.max(1, Math.round(bw - U * .5)), Math.round(1.4 * U)); }
