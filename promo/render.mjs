@@ -29,6 +29,8 @@ const JOBS = [
   {name: 'google/video/maps64-youtube-1920x1080-thumbnail.png', w: 1920, h: 1080, kind: 'png', t: 7.5},
   // Google Ads: animated banners (uploaded image ads)
   ...[[300,250],[336,280],[300,600],[160,600],[728,90],[970,250],[320,50],[320,100]].map(([w, h]) => ({name: `google/banners/maps64-${w}x${h}.gif`, w, h, kind: 'gif'})),
+  // Google Ads: the same banners as still PNGs (where Google only accepts JPG/PNG), at the Paris hit
+  ...[[300,250],[336,280],[300,600],[160,600],[728,90],[970,250],[320,50],[320,100]].map(([w, h]) => ({name: `google/banners/maps64-${w}x${h}.png`, w, h, kind: 'bannerpng', t: 4.5})),
   // Google Ads: responsive display ads (Google asks for images without text, plus logos)
   {name: 'google/responsive/maps64-landscape-1200x628.png', w: 1200, h: 628, kind: 'clean', t: 3.4},
   {name: 'google/responsive/maps64-square-1200x1200.png', w: 1200, h: 1200, kind: 'clean', t: 3.4},
@@ -96,9 +98,10 @@ for (const j of JOBS){
   else if (j.kind === 'gif') note = await gif(file, j);
   else if (j.kind === 'logo') fs.writeFileSync(file, b64(await page.evaluate(([w, h]) => logoImage(w, h), [j.w, j.h])));
   else {
-    await page.evaluate(o => setup(o), {w: j.w, h: j.h, mode: j.kind === 'clean' ? 'still' : 'video'});
+    await page.evaluate(o => setup(o), {w: j.w, h: j.h, mode: j.kind === 'clean' ? 'still' : j.kind === 'bannerpng' ? 'banner' : 'video'});
     fs.writeFileSync(file, b64(await page.evaluate(([t, hud]) => frame(t, {hud}), [j.t, j.kind !== 'clean'])));
   }
+  if (j.kind === 'bannerpng' && fs.statSync(file).size > GIF_LIMIT) note = 'OVER 150 KB';
   console.log(`${j.name.padEnd(56)} ${kb(file).padStart(8)}  ${((Date.now() - t0) / 1000).toFixed(1)}s ${note}`);
 }
 await browser.close(); server.close(); fs.rmSync(tmp, {recursive: true, force: true});

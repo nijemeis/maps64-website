@@ -44,7 +44,9 @@ Character limits are noted where the platform enforces them.
 
 ## Google Ads: uploaded image ads
 
-Upload the GIFs in `google/banners/` (all under 150 KB, play for at most 28 seconds).
+`google/banners/` has every size twice, all under 150 KB:
+- `.gif`: animated, for Display campaigns where "Upload display ads" accepts GIFs (at most 28 s)
+- `.png`: still, for everywhere Google only accepts JPG or PNG
 Final URL: https://maps64.com
 
 ## YouTube / Demand Gen

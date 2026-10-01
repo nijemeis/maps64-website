@@ -70,6 +70,13 @@ Players pick a tune with the Music button or `N` in the game, or with "Use in ga
 Jukebox page (stored as `maps64.music`). Music plays in the menus, not during flights.
 When changing the files the service worker precaches, bump `CACHE` in `site/sw.js`.
 
+## Google tag and consent
+
+`site/consent.js` loads the Google tag (Google Ads `AW-18487562500`) on every page with Consent
+Mode v2: everything starts denied, a small bar asks once (Accept / Decline, stored as
+`maps64.consent`), and `[data-cookie-settings]` links reopen it. The Content-Security-Policy in
+`netlify.toml` allows Google's tag domains.
+
 ## Ads
 
 `site/ads.js` runs Google AdSense **H5 Games Ads**:

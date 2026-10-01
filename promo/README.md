@@ -17,7 +17,7 @@ Ad text for each platform is in `COPY.md`.
 | Folder | What | Notes |
 |---|---|---|
 | `output/meta/` | 1080×1920 Reels/Stories, 1080×1350 and 1080×1080 feed: MP4 (10 s, with sound) + PNG | Stories text stays clear of the top 13 % |
-| `output/google/banners/` | Animated GIFs: 300×250, 336×280, 300×600, 160×600, 728×90, 970×250, 320×50, 320×100 | Each under 150 KB, at most 28 s of animation |
+| `output/google/banners/` | 300×250, 336×280, 300×600, 160×600, 728×90, 970×250, 320×50, 320×100 as animated GIF and still PNG | Each under 150 KB; GIFs at most 28 s of animation |
 | `output/google/responsive/` | 1200×628, 1200×1200, 960×1200 images without text, plus 1200×1200 and 1200×300 logos | For responsive display ads |
 | `output/google/video/` | 1920×1080 MP4 + thumbnail | YouTube / Demand Gen |
 
