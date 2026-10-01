@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Maps 64 promo renderer</title>
+<!-- Renders one frame of the promo animation at a time (window.frame(t)); driven by render.mjs.
+     Open /promo/ad.html?w=1080&h=1920 in a browser to watch it play. -->
+<script src="../site/vendor/d3.min.js"></script>
+<script src="../site/vendor/topojson-client.min.js"></script>
+<script src="../site/audio.js"></script>
+<style>html,body{margin:0;background:#0d1510} canvas{display:block}</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<script>
+/* ---------- palette (from the game) ---------- */
+const C = {bg:'#0d1510', line:'#2b4630', frame2:'#18301d', text:'#e3eed6', muted:'#93a88a', faint:'#62775b',
+  acc:'#9ad26a', acc2:'#c4ec9b', accDeep:'#35602a', gold:'#f0dc5a', sea:'#1e3a6c', seaHi:'#2c5395', land:'#4e8c34', coast:'#8acb5a',
+  border:'#2f5d22', out:'#46523f', outCoast:'#5e6b57', outBorder:'#394335', city:'#f0dc5a', cityEdge:'#14210e',
+  heli:'#cf5a3e', heliEdge:'#1b120d', glass:'#86c9da', skid:'#34342e', rotor:'#dcdccb', shadow:'#10230c'};
+const FONT = '"Pixelify Sans", ui-monospace, monospace';
+
+/* ---------- helicopter sprite (same as the game: 32 pre-rotated headings) ---------- */
+const HELI = ["......kkk......",".....kgggk.....","....kgggggk....","..s.kgggggk.s..","..s.kbgggbk.s..","..s.kbbbbbk.s..","..skbbbbbbbks..","..skbbbbbbbks..",
+  "..s.kbbbbbk.s..","..s.kbbbbbk.s..","..s..kbbbk..s..","......kbk......","......kbk......","......kbk......","......kbk......","......kbk......","......kbk......",
+  "....kkkbkkk....","....kbbbbbk....","....kkkbkkk....","......kbk......",".......k......."];
+const HPAL = {k:C.heliEdge, b:C.heli, g:C.glass, s:C.skid}, HN = 32, HSZ = 31, HC = 15, HF = [], HS = [];
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+for (let n = 0; n < HN; n++){
+  const a = n / HN * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+  const c = mk(HSZ, HSZ), x = c.getContext('2d'), s = mk(HSZ, HSZ), y = s.getContext('2d'); y.fillStyle = C.shadow;
+  for (let dy = 0; dy < HSZ; dy++) for (let dx = 0; dx < HSZ; dx++){
+    const rx = dx - HC, ry = dy - HC, sx = Math.round(rx * ca + ry * sa + 7), sy = Math.round(-rx * sa + ry * ca + 7);
+    const ch = HELI[sy] && HELI[sy][sx];
+    if (ch && ch !== '.'){ x.fillStyle = HPAL[ch]; x.fillRect(dx, dy, 1, 1); y.fillRect(dx, dy, 1, 1); }
+  }
+  HF.push(c); HS.push(s);
+}
+
+/* ---------- scene data ---------- */
+const CITIES = [['Paris',2.35,48.86],['Brussels',4.35,50.85],['Amsterdam',4.9,52.37],['Luxembourg',6.13,49.61],['Bern',7.45,46.95],
+  ['London',-0.13,51.51],['Berlin',13.4,52.52],['Frankfurt',8.68,50.11],['Lyon',4.83,45.76],['Strasbourg',7.75,48.58],['Munich',11.58,48.14],
+  ['Milan',9.19,45.46],['Hamburg',9.99,53.55],['Bordeaux',-0.58,44.84],['Marseille',5.37,43.3],['Copenhagen',12.57,55.68]];
+const START = [8.9, 49.35], TARGET = 'Paris';
+const EUROPE = n => !['Morocco','Algeria','Tunisia','Libya','Egypt','Turkey','Syria','Iraq','Iran','Israel','Jordan','Lebanon','Palestine','Saudi Arabia','Georgia','Armenia','Azerbaijan','Kazakhstan','N. Cyprus','Cyprus'].includes(n);
+
+let S;  // the scene for the current size
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+
+/* ---------- layouts ----------
+   kind: video formats get two acts (flight, then an end card); banners keep logo + CTA on screen
+   field: the part of the logical screen the flight has to fit in (x, y, w, h as fractions) */
+function layoutFor(w, h, mode){
+  const r = w / h;
+  if (mode === 'banner'){
+    if (r >= 5)   return {kind:'strip', field:[.30,.08,.40,.84]};           // 728x90, 320x50
+    if (r >= 2.5) return {kind:'strip2', field:[.36,.06,.30,.88]};          // 320x100, 970x250
+    if (r <= .4)  return {kind:'sky', field:[.08,.33,.84,.30]};             // 160x600
+    if (r <= .6)  return {kind:'half', field:[.08,.30,.84,.34]};            // 300x600
+    return {kind:'box', field:[.10,.24,.80,.44]};                           // 300x250, 336x280
+  }
+  if (r < .7)  return {kind:'story', field:[.10,.25,.80,.42], safeTop:.13}; // 9:16, avoid the Stories UI
+  if (r < .95) return {kind:'portrait', field:[.10,.20,.80,.55]};           // 4:5
+  if (r < 1.2) return {kind:'square', field:[.10,.20,.80,.55]};             // 1:1
+  return {kind:'wide', field:[.48,.18,.44,.66]};                            // 16:9, 1.91:1
+}
+
+async function setup(opts){
+  const {w, h, mode = 'video', dur = 10} = opts;
+  await Promise.all([400, 500].map(wt => new FontFace('Pixelify Sans', `url(../site/fonts/pixelify-${wt}.woff2)`, {weight: String(wt)}).load().then(f => document.fonts.add(f))));
+  if (!window.TOPO) window.TOPO = await fetch('../site/vendor/countries-50m.json').then(r => r.json());
+  cv.width = w; cv.height = h;
+  const L = layoutFor(w, h, mode);
+  if (mode === 'still') L.field = [.22, .16, .56, .68];  // text-free images: the flight in the middle
+  const P = Math.max(1, Math.min(mode === 'banner' ? 2 : 4, Math.round(Math.min(w, h) / 105)));  // size of one map pixel
+  const vw = Math.ceil(w / P), vh = Math.ceil(h / P);
+  const pad = mode === 'video' ? Math.round(Math.max(vw, vh) * .25) : 0;   // room to pan in videos
+  const MW = vw + pad * 2, MH = vh + pad * 2;
+  // fit the flight (start → Paris) into the field, with room for the curve and the circle at the end
+  const paris = CITIES.find(c => c[0] === TARGET);
+  const f = L.field, fx = pad + f[0] * vw, fy = pad + f[1] * vh, fw = f[2] * vw, fh = f[3] * vh;
+  // videos and stills show more of Europe (coasts make it recognisable); small banners zoom in on the flight
+  const box = {type:'MultiPoint', coordinates: mode === 'banner' ? (L.kind === 'strip' ? [[paris[1] - .9, paris[2] - .8], [START[0] + .5, START[1] + 1.4]] : [[paris[1] - 2.4, paris[2] - 2], [START[0] + 1.8, START[1] + 3]]) : [[-3.5, 45.2], [12.5, 53.8]]};
+  const proj = d3.geoMercator().fitExtent([[fx, fy], [fx + fw, fy + fh]], box);
+  const g = TOPO.objects.countries, feats = topojson.feature(TOPO, g).features;
+  // alpha masks → palette, like the game's map renderer
+  const layer = fn => { const c = mk(MW, MH), x = c.getContext('2d'); fn(d3.geoPath(proj, x), x); return x.getImageData(0, 0, MW, MH).data; };
+  const eu = layer((p, x) => { x.beginPath(); feats.filter(f => EUROPE(f.properties.name)).forEach(f => p(f)); x.fill(); });
+  const all = layer((p, x) => { x.beginPath(); p({type:'FeatureCollection', features:feats}); x.fill(); });
+  const bor = layer((p, x) => { x.lineWidth = 1; x.beginPath(); p(topojson.mesh(TOPO, g, (a, b) => a !== b)); x.stroke(); });
+  const map = mk(MW, MH), mx = map.getContext('2d'), img = mx.createImageData(MW, MH), d = img.data;
+  const rgb = hx => [1, 3, 5].map(i => parseInt(hx.slice(i, i + 2), 16));
+  const PAL = Object.fromEntries(Object.entries(C).map(([k, v]) => [k, rgb(v)]));
+  const landAt = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH && all[(y * MW + x) * 4 + 3] > 110;
+  const sea = new Uint8Array(MW * MH);
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++){
+    const i = y * MW + x, a = i * 4; let col;
+    if (!landAt(x, y)){ col = PAL.sea; sea[i] = 1; }
+    else {
+      const inEU = eu[a + 3] > 110, edge = !landAt(x + 1, y) || !landAt(x - 1, y) || !landAt(x, y + 1) || !landAt(x, y - 1);
+      col = edge ? (inEU ? PAL.coast : PAL.outCoast) : bor[a + 3] > 90 ? (inEU ? PAL.border : PAL.outBorder) : (inEU ? PAL.land : PAL.out);
+    }
+    d[a] = col[0]; d[a + 1] = col[1]; d[a + 2] = col[2]; d[a + 3] = 255;
+  }
+  mx.putImageData(img, 0, 0);
+  // wave marks on open sea
+  const waves = [];
+  for (let y = 6; y < MH - 3; y += 11) for (let x = (y / 11 % 2) * 9 + 3; x < MW - 6; x += 18){
+    let ok = true; for (let dy = -2; dy <= 2 && ok; dy++) for (let dx = -2; dx <= 7; dx++) if (!sea[Math.min(MH - 1, Math.max(0, y + dy)) * MW + Math.min(MW - 1, Math.max(0, x + dx))]){ ok = false; break; }
+    if (ok) waves.push([x, y]);
+  }
+  const cities = CITIES.map(([n, lo, la]) => ({n, p: proj([lo, la])})).filter(c => c.p[0] > 2 && c.p[1] > 2 && c.p[0] < MW - 2 && c.p[1] < MH - 2);
+  const s0 = proj(START), tg = cities.find(c => c.n === TARGET).p;
+  const dist = Math.hypot(tg[0] - s0[0], tg[1] - s0[1]);
+  // a curved route: north first, then a long bank west onto Paris
+  const c1 = [s0[0] - dist * .05, s0[1] - dist * .55], c2 = [tg[0] + dist * .55, tg[1] - dist * .35];
+  const px = mk(vw, vh);
+  S = {w, h, mode, dur, L, P, vw, vh, pad, MW, MH, map, waves, cities, s0, c1, c2, tg, dist, px, pctx: px.getContext('2d')};
+  // timing (seconds)
+  S.T = mode === 'banner' ? {lift:.2, fly0:.4, hit:4.2, card:99} : {lift:.35, fly0:.6, hit:5.0, card:5.6};
+  return {vw, vh, P, cities: cities.length};
+}
+
+/* ---------- flight path ---------- */
+const bez = (a, b, c, d, u) => { const v = 1 - u; return v*v*v*a + 3*v*v*u*b + 3*v*u*u*c + u*u*u*d; };
+const ease = u => u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2;
+function heliAt(t){
+  const {T, s0, c1, c2, tg, dist} = S;
+  if (t <= T.fly0) return {x: s0[0], y: s0[1], hd: 0};
+  if (t < T.hit){
+    const u = ease((t - T.fly0) / (T.hit - T.fly0)), u2 = Math.min(1, u + .01);
+    const x = bez(s0[0], c1[0], c2[0], tg[0], u), y = bez(s0[1], c1[1], c2[1], tg[1], u);
+    const x2 = bez(s0[0], c1[0], c2[0], tg[0], u2), y2 = bez(s0[1], c1[1], c2[1], tg[1], u2);
+    return {x, y, hd: Math.atan2(x2 - x, -(y2 - y))};
+  }
+  // after the hit: circle over Paris (starts heading west, turning north)
+  const R = Math.max(8, dist * .1), a = (t - T.hit) * 1.3;
+  return {x: tg[0] - Math.sin(a) * R, y: tg[1] - R + Math.cos(a) * R, hd: -Math.PI / 2 + a};
+}
+
+/* ---------- drawing helpers ---------- */
+// the helicopter in screen space at pixel scale k, centred on (x, y), with spinning rotor blades
+function heliSprite(x, y, hd, k, t, alpha = 1){
+  const n = ((Math.round(hd / (Math.PI * 2) * HN) % HN) + HN) % HN, sz = HSZ * k;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = .35 * alpha; ctx.drawImage(HS[n], x - sz / 2 + 5 * k, y - sz / 2 + 6 * k, sz, sz); ctx.globalAlpha = alpha;
+  ctx.drawImage(HF[n], x - sz / 2, y - sz / 2, sz, sz);
+  ctx.fillStyle = C.rotor; const ra = t * 23;
+  for (let b = 0; b < 2; b++){ const a = ra + b * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); for (let r = -12; r <= 12; r++){ if (Math.abs(r) < 2) continue; ctx.fillRect(Math.round(x / k + ca * r) * k, Math.round(y / k + sa * r) * k, k, k); } }
+  ctx.fillStyle = C.heliEdge; ctx.fillRect(x - k, y - k, 2 * k, 2 * k);
+  ctx.restore();
+}
+function font(px, wt = 500){ ctx.font = `${wt} ${px}px ${FONT}`; }
+function fit(text, maxW, maxPx, wt = 500){ let px = maxPx; font(px, wt); while (px > 6 && ctx.measureText(text).width > maxW){ px -= 1; font(px, wt); } return px; }
+function rrect(x, y, w, h, r){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function textAt(t, x, y, px, col, {wt = 500, align = 'left', base = 'top', alpha = 1, shadow = 0} = {}){
+  font(px, wt); ctx.textAlign = align; ctx.textBaseline = base; ctx.globalAlpha = alpha;
+  if (shadow){ ctx.fillStyle = C.shadow; ctx.fillText(t, x + shadow, y + shadow); }
+  ctx.fillStyle = col; ctx.fillText(t, x, y); ctx.globalAlpha = 1;
+}
+// the game's logo: banded green gradient with a hard drop shadow
+function logo(lines, x, y, px, {align = 'left', alpha = 1} = {}){
+  font(px, 500); ctx.textAlign = align; ctx.textBaseline = 'top'; ctx.globalAlpha = alpha;
+  const lh = px * .86, H = lh * lines.length + px * .1;
+  const g = ctx.createLinearGradient(0, y, 0, y + H);
+  [['#e6f7d2',0,.24],['#c4ec9b',.24,.40],['#9ad26a',.40,.54],['#78b84c',.54,.68],['#5a9a3a',.68,.82],['#3f7a2a',.82,1]].forEach(([c, a, b]) => { g.addColorStop(a, c); g.addColorStop(b, c); });
+  lines.forEach((l, i) => { ctx.fillStyle = C.shadow; ctx.fillText(l, x + px * .05, y + i * lh + px * .05); });
+  lines.forEach((l, i) => { ctx.fillStyle = g; ctx.fillText(l, x, y + i * lh); });
+  ctx.globalAlpha = 1; return H;
+}
+function button(label, cx, cy, maxW, px, {alpha = 1, pulse = 0} = {}){
+  font(px, 500); const tw = Math.min(maxW - px * 1.6, ctx.measureText(label).width);
+  const bw = tw + px * 1.6, bh = px * 2.1, s = 1 + pulse;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(cx, cy); ctx.scale(s, s);
+  ctx.fillStyle = C.shadow; rrect(-bw/2 + px*.18, -bh/2 + px*.18, bw, bh, px * .4); ctx.fill();
+  ctx.fillStyle = C.acc; rrect(-bw/2, -bh/2, bw, bh, px * .4); ctx.fill();
+  ctx.fillStyle = C.bg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, 0, px * .06, tw);
+  ctx.restore(); return bh;
+}
+function panel(x, y, w, h, a = .82){ ctx.globalAlpha = a; ctx.fillStyle = C.bg; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ramp = (t, a, d = .35) => clamp((t - a) / d, 0, 1);
+
+/* ---------- one frame ---------- */
+function frame(t, {hud = true} = {}){
+  const {P, vw, vh, pad, map, pctx: g, T, mode, w, h, L} = S;
+  const hb = heliAt(t), animate = mode === 'video';
+  // camera: videos drift after the heli, banners and stills stay put
+  let cx = pad, cy = pad;
+  if (animate){ const lag = heliAt(Math.max(0, t - .5)); cx = clamp(Math.round(pad + (lag.x - (S.s0[0] + S.tg[0]) / 2) * .35), 0, S.MW - vw); cy = clamp(Math.round(pad + (lag.y - (S.s0[1] + S.tg[1]) / 2) * .35), 0, S.MH - vh); }
+  g.drawImage(map, -cx, -cy);
+  // waves bob like the game's sea (videos only, keeps the GIFs small)
+  g.fillStyle = C.seaHi; const ph = animate ? Math.floor(t * 2) % 2 : 0;
+  for (const [x, y] of S.waves){ const X = x - cx, Y = y - cy; if (X < -8 || Y < -4 || X > vw || Y > vh) continue; if (ph){ g.fillRect(X, Y, 2, 1); g.fillRect(X + 2, Y - 1, 2, 1); g.fillRect(X + 4, Y, 2, 1); } else { g.fillRect(X + 1, Y - 1, 2, 1); g.fillRect(X + 3, Y, 2, 1); g.fillRect(X, Y, 1, 1); } }
+  // city dots
+  const hitOn = t >= T.hit;
+  for (const c of S.cities){
+    const X = Math.round(c.p[0] - cx), Y = Math.round(c.p[1] - cy), isT = c.n === TARGET;
+    g.fillStyle = C.cityEdge; g.fillRect(X - 2, Y - 2, 5, 5);
+    g.fillStyle = isT && hitOn && Math.floor((t - T.hit) * 6) % 2 === 0 && t - T.hit < 1 ? '#ffffff' : C.city; g.fillRect(X - 1, Y - 1, 3, 3);
+  }
+  // hit: a gold ring of blocks expanding from Paris
+  if (hitOn && t - T.hit < .7){
+    const k = (t - T.hit) / .7, R = 4 + k * 22, X = S.tg[0] - cx, Y = S.tg[1] - cy;
+    g.fillStyle = C.gold; g.globalAlpha = 1 - k;
+    for (let i = 0; i < 24; i++){ const a = i / 24 * Math.PI * 2; g.fillRect(Math.round(X + Math.cos(a) * R) - 1, Math.round(Y + Math.sin(a) * R) - 1, 2, 2); }
+    g.globalAlpha = 1;
+  }
+  // helicopter: lift off (shadow grows), sprite, spinning rotor
+  const lift = clamp(t / Math.max(.01, T.lift), 0, 1), n = ((Math.round(hb.hd / (Math.PI * 2) * HN) % HN) + HN) % HN;
+  const X = Math.round(hb.x - cx), Y = Math.round(hb.y - cy), so = Math.round(2 + 4 * lift);
+  // on the centred end cards the heli moves onto the card, so the one on the map fades out
+  const ha = hud && mode === 'video' && L.kind !== 'wide' ? 1 - ramp(t, T.card, .4) : 1;
+  g.globalAlpha = .35 * ha; g.drawImage(HS[n], X - HC + so, Y - HC + so + 1); g.globalAlpha = ha;
+  g.drawImage(HF[n], X - HC, Y - HC); g.globalAlpha = 1;
+  g.fillStyle = C.rotor; g.globalAlpha = ha; const ra = t * 23 * (.4 + .6 * lift);
+  for (let b = 0; b < 2; b++){ const a = ra + b * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a); for (let r = -12; r <= 12; r++){ if (Math.abs(r) < 2) continue; g.fillRect(Math.round(X + ca * r), Math.round(Y + sa * r), 1, 1); } }
+  g.fillStyle = C.heliEdge; g.fillRect(X - 1, Y - 1, 2, 2); g.globalAlpha = 1;
+
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(S.px, 0, 0, vw * P, vh * P);
+  // Paris label after the hit (screen space, crisp)
+  const lp = [(S.tg[0] - cx) * P, (S.tg[1] - cy) * P];
+  if (hitOn && hud){
+    const px = Math.round(clamp(Math.min(w, h) * .032, 11, 30)), a = ramp(t, T.hit, .15) * (1 - ramp(t, T.card, .3));
+    font(px, 500); const tw = ctx.measureText('PARIS ✓').width;
+    ctx.globalAlpha = a; ctx.fillStyle = C.bg; rrect(lp[0] - tw/2 - px*.4, lp[1] - px * 2.7, tw + px*.8, px * 1.5, px*.2); ctx.fill(); ctx.globalAlpha = 1;
+    textAt('PARIS ✓', lp[0], lp[1] - px * 2.6, px, C.gold, {align:'center', alpha:a});
+    const k = clamp((t - T.hit) / .9, 0, 1);
+    if (k < 1 && a > 0) textAt('+186', lp[0] + px * 1.2, lp[1] - px * 3.4 - k * px * 2, Math.round(px * 1.15), C.acc2, {alpha: 1 - k * k, shadow: Math.max(1, px * .08)});
+  }
+  if (hud) (mode === 'banner' ? bannerText : videoText)(t);
+  return cv.toDataURL('image/png');
+}
+
+/* ---------- video overlays: the game's HUD, then the end card ---------- */
+function videoText(t){
+  const {w, h, L, T} = S, U = Math.min(w, h) / 100, top = (L.safeTop || 0) * h, wide = L.kind === 'wide';
+  // HUD bar like in the game
+  const hudA = 1 - ramp(t, T.card, .3);
+  if (hudA > 0){
+    const hx = wide ? 4 * U : 6 * U, hy = top + 4 * U, hw = w - hx * 2;
+    const g = ctx.createLinearGradient(0, top, 0, hy + 16 * U); g.addColorStop(0, 'rgba(13,21,16,.92)'); g.addColorStop(.7, 'rgba(13,21,16,.75)'); g.addColorStop(1, 'rgba(13,21,16,0)');
+    ctx.globalAlpha = hudA; ctx.fillStyle = g; ctx.fillRect(0, top, w, hy + 16 * U - top); ctx.globalAlpha = 1;
+    const showT = ramp(t, .15, .25);
+    textAt('FLY TO', hx, hy, Math.round(2.6 * U), C.acc, {alpha: hudA * showT});
+    textAt(TARGET.toUpperCase(), hx, hy + 3.6 * U, Math.round(7 * U), C.text, {alpha: hudA * showT, shadow: Math.max(1, .5 * U)});
+    const sc = t < T.hit ? 0 : Math.round(186 * clamp((t - T.hit) / .5, 0, 1));
+    textAt('SCORE', hx + hw, hy, Math.round(2.6 * U), C.acc, {align:'right', alpha: hudA});
+    textAt(String(sc).padStart(5, '0'), hx + hw, hy + 3.6 * U, Math.round(4.6 * U), C.text, {align:'right', alpha: hudA});
+    // fuel blocks along the bottom of the play area
+    const fy = (L.kind === 'story' ? h * .74 : h - 6 * U), fw = hw, bw = fw / 20, left = t < T.fly0 ? 20 : Math.max(6, Math.ceil(20 - (Math.min(t, T.hit) - T.fly0) / (T.hit - T.fly0) * 14));
+    ctx.globalAlpha = hudA;
+    textAt('FUEL', hx, fy - 3.4 * U, Math.round(2.4 * U), C.acc, {alpha: hudA});
+    for (let i = 0; i < 20; i++){ ctx.fillStyle = i < left ? C.acc : C.frame2; ctx.fillRect(Math.round(hx + i * bw), Math.round(fy), Math.max(1, Math.round(bw - U * .5)), Math.round(1.4 * U)); }
+    ctx.globalAlpha = 1;
+  }
+  // end card
+  const cA = ramp(t, T.card, .4); if (cA <= 0) return;
+  if (wide){
+    const g = ctx.createLinearGradient(0, 0, w * .62, 0); g.addColorStop(0, 'rgba(13,21,16,.94)'); g.addColorStop(.75, 'rgba(13,21,16,.8)'); g.addColorStop(1, 'rgba(13,21,16,0)');
+    ctx.globalAlpha = cA; ctx.fillStyle = g; ctx.fillRect(0, 0, w * .62, h); ctx.globalAlpha = 1;
+    // size everything to the height, then centre the block vertically
+    const x = 7 * U, colW = w * .44, kpx = Math.round(fit('HELI FLIGHT · RETRO GEOGRAPHY GAME', colW, 3 * U));
+    const lpx = Math.round(Math.min(20 * U, colW / 3.1)), tpx = fit('Fly your helicopter over the right city', colW, 3.8 * U, 400);
+    const bpx = Math.round(fit('PLAY FREE ▸ MAPS64.COM', colW - 4 * U, 4.2 * U)), spx = Math.round(fit('No download · plays in your browser and on your phone', colW, 2.4 * U, 400));
+    const total = kpx + 3 * U + (lpx * .86 * 2 + lpx * .1) + 3 * U + tpx * 2.35 + 5 * U + bpx * 2.1 + 2.5 * U + spx;
+    let y = (h - total) / 2;
+    textAt('HELI FLIGHT · RETRO GEOGRAPHY GAME', x, y, kpx, C.acc, {alpha: ramp(t, T.card + .1)}); y += kpx + 3 * U;
+    y += logo(['MAPS', '64'], x, y, lpx, {alpha: ramp(t, T.card + .15)}) + 3 * U;
+    textAt('Fly your helicopter over the right city', x, y, tpx, C.text, {wt:400, alpha: ramp(t, T.card + .45)});
+    textAt('before the fuel runs out.', x, y + tpx * 1.35, tpx, C.text, {wt:400, alpha: ramp(t, T.card + .45)}); y += tpx * 2.35 + 5 * U;
+    font(bpx); const bw = ctx.measureText('PLAY FREE ▸ MAPS64.COM').width + bpx * 1.6;
+    button('PLAY FREE ▸ MAPS64.COM', x + bw / 2, y + bpx * 1.05, colW, bpx, {alpha: ramp(t, T.card + .8, .25), pulse: t > T.card + 1.2 ? .03 * Math.max(0, Math.sin((t - T.card) * 5)) : 0});
+    y += bpx * 2.1 + 2.5 * U;
+    textAt('No download · plays in your browser and on your phone', x, y, spx, C.muted, {wt:400, alpha: ramp(t, T.card + 1)});
+    return;
+  }
+  ctx.globalAlpha = cA * .86; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1;
+  const cxm = w / 2, story = L.kind === 'story', colW = w - 16 * U;
+  let y = story ? h * .26 : h * (L.kind === 'portrait' ? .14 : .1);
+  const kpx = Math.round(fit('HELI FLIGHT · RETRO GEOGRAPHY GAME', colW, 3.2 * U));
+  textAt('HELI FLIGHT · RETRO GEOGRAPHY GAME', cxm, y, kpx, C.acc, {align:'center', alpha: ramp(t, T.card + .1)});
+  y += kpx + 4 * U;
+  const lpx = Math.round(story ? 30 * U : L.kind === 'portrait' ? 26 * U : 23 * U);
+  const ly = y; y += logo(['MAPS', '64'], cxm, y, lpx, {align:'center', alpha: ramp(t, T.card + .15)}) + 4 * U;
+  // the helicopter hovers beside the "64", turning gently, like on the game's title screen
+  const ha = ramp(t, T.card + .3, .4), bob = Math.sin(t * 2.2) * U * .6;
+  heliSprite(cxm + lpx * 1.25 + (1 - ha) * 20 * U, ly + lpx * 1.25 + bob, Math.PI * .75 + Math.sin(t * 1.3) * .25, S.P + 1, t, ha);
+  const tpx = Math.round(fit('Fly your helicopter over the right city', colW, 4.6 * U, 400));
+  textAt('Fly your helicopter over the right city', cxm, y, tpx, C.text, {wt:400, align:'center', alpha: ramp(t, T.card + .45)});
+  textAt('before the fuel runs out.', cxm, y + tpx * 1.35, tpx, C.text, {wt:400, align:'center', alpha: ramp(t, T.card + .45)});
+  y += tpx * 1.35 * 2 + (story ? 10 : 7) * U;
+  const bpx = Math.round(fit('PLAY FREE ▸ MAPS64.COM', colW - 6 * U, 5.2 * U));
+  button('PLAY FREE ▸ MAPS64.COM', cxm, y, colW, bpx, {alpha: ramp(t, T.card + .8, .25), pulse: t > T.card + 1.2 ? .03 * Math.max(0, Math.sin((t - T.card) * 5)) : 0});
+  y += bpx * 2.1;
+  textAt('No download · browser and phone', cxm, y, Math.round(fit('No download · browser and phone', colW, 3 * U, 400)), C.muted, {wt:400, align:'center', alpha: ramp(t, T.card + 1)});
+}
+
+/* ---------- banner overlays: logo and CTA stay on screen ---------- */
+function bannerText(t){
+  const {w, h, L} = S, k = L.kind, pulse = .035 * Math.max(0, Math.sin(t * 4));
+  const CTA = 'PLAY FREE ▸';
+  if (k === 'strip'){
+    const lw = w * .28; panel(0, 0, lw, h, .86); panel(w * .72, 0, w * .28, h, .86);
+    const lpx = Math.round(Math.min(h * .5, fit('MAPS 64', lw * .86, h)));
+    logo(['MAPS 64'], lw * .07, h * (h > 60 ? .14 : .2), lpx);
+    if (h > 60) textAt('Retro heli geography game', lw * .07, h * .14 + lpx * 1.0, Math.round(fit('Retro heli geography game', lw * .86, h * .17, 400)), C.muted, {wt:400});
+    const bpx = Math.round(Math.min(h * .2, fit(CTA, w * .2, h * .3)));
+    button(CTA, w * .86, h * (h > 60 ? .4 : .5), w * .26, bpx, {pulse});
+    if (h > 60) textAt('maps64.com', w * .86, h * .72, Math.round(h * .15), C.acc, {align:'center'});
+    return;
+  }
+  if (k === 'strip2'){
+    const lw = w * .34; panel(0, 0, lw, h, .86); panel(w * .68, 0, w * .32, h, .86);
+    const lpx = Math.round(fit('MAPS 64', lw * .86, h * .42));
+    logo(['MAPS 64'], lw * .07, h * .12, lpx);
+    textAt('Fly to the right city!', lw * .07, h * .14 + lpx, Math.round(fit('Fly to the right city!', lw * .86, h * .16, 400)), C.text, {wt:400});
+    textAt('Retro geography game', lw * .07, h * .16 + lpx + h * .17, Math.round(fit('Retro geography game', lw * .86, h * .13, 400)), C.muted, {wt:400});
+    const bpx = Math.round(fit(CTA, w * .24, h * .16));
+    button(CTA, w * .84, h * .4, w * .28, bpx, {pulse});
+    textAt('maps64.com', w * .84, h * .66, Math.round(fit('maps64.com', w * .26, h * .14)), C.acc, {align:'center'});
+    return;
+  }
+  // stacked layouts: box, half page, skyscraper
+  const tall = k !== 'box', topH = h * (k === 'box' ? .22 : .27), botH = h * (k === 'box' ? .3 : .3);
+  const g1 = ctx.createLinearGradient(0, 0, 0, topH * 1.25); g1.addColorStop(0, 'rgba(13,21,16,.92)'); g1.addColorStop(.8, 'rgba(13,21,16,.85)'); g1.addColorStop(1, 'rgba(13,21,16,0)');
+  ctx.fillStyle = g1; ctx.fillRect(0, 0, w, topH * 1.25);
+  const g2 = ctx.createLinearGradient(0, h - botH * 1.25, 0, h); g2.addColorStop(0, 'rgba(13,21,16,0)'); g2.addColorStop(.2, 'rgba(13,21,16,.85)'); g2.addColorStop(1, 'rgba(13,21,16,.94)');
+  ctx.fillStyle = g2; ctx.fillRect(0, h - botH * 1.25, w, botH * 1.25);
+  const m = w * .07;
+  if (tall){
+    const lpx = Math.round(fit('MAPS', w - m * 2, h * .085));
+    const lh = logo(['MAPS', '64'], w / 2, h * .03, lpx, {align:'center'});
+    textAt('RETRO GEOGRAPHY GAME', w / 2, h * .035 + lh, Math.round(fit('RETRO GEOGRAPHY GAME', w - m * 2, h * .028)), C.acc, {align:'center'});
+  } else {
+    const lpx = Math.round(fit('MAPS 64', w * .62, h * .13));
+    logo(['MAPS 64'], m, h * .05, lpx);
+    textAt('RETRO', w - m, h * .06, Math.round(h * .045), C.acc, {align:'right'});
+    textAt('GEOGRAPHY GAME', w - m, h * .06 + h * .055, Math.round(fit('GEOGRAPHY GAME', w * .3, h * .045)), C.acc, {align:'right'});
+  }
+  const line = 'Fly to the right city before the fuel runs out!';
+  const tpx = Math.round(fit(tall ? 'Fly to the right city' : line, w - m * 2, h * (tall ? .035 : .055), 400));
+  if (tall){
+    textAt('Fly to the right city', w / 2, h - botH * .98, tpx, C.text, {wt:400, align:'center'});
+    textAt('before the fuel runs out!', w / 2, h - botH * .98 + tpx * 1.3, tpx, C.text, {wt:400, align:'center'});
+  } else textAt(line, w / 2, h - botH * .95, tpx, C.text, {wt:400, align:'center'});
+  const bpx = Math.round(fit('PLAY FREE ▸ MAPS64.COM', w - m * 2 - 20, h * (tall ? .032 : .06)));
+  button(k === 'sky' ? CTA : 'PLAY FREE ▸ MAPS64.COM', w / 2, h - botH * (tall ? .38 : .38), w - m * 2, k === 'sky' ? Math.round(fit(CTA, w - m * 3, h * .03)) : bpx, {pulse});
+  if (k === 'sky') textAt('maps64.com', w / 2, h - botH * .2, Math.round(fit('maps64.com', w - m * 2, h * .028)), C.acc, {align:'center'});
+}
+
+/* ---------- logos for Google's responsive display ads ---------- */
+async function logoImage(w, h){
+  await setup({w: 400, h: 400, mode: 'still'});
+  cv.width = w; cv.height = h; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = false;
+  if (w === h){
+    // helicopter centred over the two-line logo, nose to the upper right
+    const s = Math.floor(w * .36 / HSZ), hx = w / 2 - HSZ * s / 2, hy = h * .08;
+    heliSprite(w / 2, hy + HSZ * s / 2, Math.PI / 4, s, .03);
+    logo(['MAPS', '64'], w / 2, h * .47, Math.round(w * .26), {align: 'center'});
+  } else {
+    const s = Math.floor(h * .8 / HSZ);
+    heliSprite(h * .1 + HSZ * s / 2, h / 2, Math.PI / 2, s, .03);
+    logo(['MAPS 64'], h * 1.05, h * .14, Math.round(h * .62));
+  }
+  return cv.toDataURL('image/png');
+}
+
+/* ---------- soundtrack: the game's synth rendered offline ---------- */
+async function renderAudio(dur, {hit = 5.0, card = 5.6} = {}){
+  const sr = 44100, off = new OfflineAudioContext(2, Math.ceil(sr * dur), sr);
+  window.AudioContext = function(){ return off; }; window.webkitAudioContext = undefined;
+  Snd.ac = null; Snd.on = true; Snd.init();
+  Snd.musicOff = false; Snd.tuneIx = 0; Snd.startMusic(); clearInterval(Snd.timer); Snd.timer = null;
+  for (let t = .05, s = 0; t < dur; t += Snd.stepLen, s = (s + 1) % Snd.steps) Snd.play(s, t);
+  Snd.mus.gain.setValueAtTime(.5, dur - .7); Snd.mus.gain.linearRampToValueAtTime(0, dur);
+  Snd.rot.gain.setValueAtTime(0, 0); Snd.rot.gain.setTargetAtTime(.1, .3, .25); Snd.lfo.frequency.setValueAtTime(10, 0); Snd.lfo.frequency.setTargetAtTime(16, .4, .4);
+  Snd.rot.gain.setTargetAtTime(.035, card, .4);
+  ['C5','E5','G5','C6','G5','C6'].forEach((n, i) => Snd.tone(NOTE(n), hit + i * .065, .09, {w:.25, vol:.1}));
+  Snd.tone(660, card + .8, .05, {w:.5, vol:.07}); Snd.tone(1320, card + .85, .08, {w:.5, vol:.07});
+  const buf = await off.startRendering();
+  const chs = [buf.getChannelData(0), buf.getChannelData(1)]; let peak = 0;
+  for (const c of chs) for (const v of c) peak = Math.max(peak, Math.abs(v));
+  const gain = peak > 0 ? .89 / peak : 1, n = buf.length, out = new DataView(new ArrayBuffer(44 + n * 4));
+  const str = (o, s) => [...s].forEach((ch, i) => out.setUint8(o + i, ch.charCodeAt(0)));
+  str(0, 'RIFF'); out.setUint32(4, 36 + n * 4, true); str(8, 'WAVE'); str(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 2, true);
+  out.setUint32(24, sr, true); out.setUint32(28, sr * 4, true); out.setUint16(32, 4, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, n * 4, true);
+  for (let i = 0; i < n; i++) for (let c = 0; c < 2; c++) out.setInt16(44 + (i * 2 + c) * 2, clamp(chs[c][i] * gain, -1, 1) * 32767, true);
+  let bin = ''; const bytes = new Uint8Array(out.buffer); for (let i = 0; i < bytes.length; i += 32768) bin += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  return btoa(bin);
+}
+
+/* watch it in a browser: /promo/ad.html?w=1080&h=1920&mode=video */
+const q = new URLSearchParams(location.search);
+if (q.get('w')){
+  setup({w: +q.get('w'), h: +q.get('h'), mode: q.get('mode') || 'video'}).then(() => {
+    const t0 = performance.now(), D = S.mode === 'banner' ? 7 : 10;
+    (function loop(){ frame(((performance.now() - t0) / 1000) % D); requestAnimationFrame(loop); })();
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maps 64 Promo Set</title>
+<!-- Review page for the rendered promo set; serve the repo root and open /promo/gallery.html -->
+<style>
+@font-face{font-family:"Pixelify Sans";font-weight:500;src:url(../site/fonts/pixelify-500.woff2) format("woff2")}
+:root{--bg:#0d1510;--line:#2b4630;--text:#e3eed6;--muted:#93a88a;--acc:#9ad26a}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,sans-serif;padding:24px 16px 60px}
+main{max-width:1200px;margin:0 auto}
+h1,h2{font-family:"Pixelify Sans",monospace;font-weight:500} h1{font-size:32px;margin:0 0 4px} h2{font-size:22px;margin:36px 0 12px;border-top:1px solid var(--line);padding-top:20px}
+p{color:var(--muted);margin:0 0 12px}
+.grid{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+figure{margin:0} figcaption{font-size:12px;color:var(--muted);margin-top:6px}
+video,img{display:block;border:1px solid var(--line);border-radius:4px;max-width:100%;image-rendering:pixelated}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>Maps 64 promo set</h1>
+<p>Rendered from the game's own map, helicopter, font and chip synth. Videos have sound: click play. Files are in <code>promo/output/</code>; ad copy is in <a href="COPY.md">COPY.md</a>.</p>
+<div id="sets"></div>
+</main>
+<script>
+const SETS = [
+  ['Instagram / Facebook: video', 'Reels/Stories 9:16, feed 4:5 and 1:1. 10 seconds, with sound.', [
+    ['meta/maps64-reel-1080x1920.mp4', 270], ['meta/maps64-feed-1080x1350.mp4', 320], ['meta/maps64-feed-1080x1080.mp4', 320]]],
+  ['Instagram / Facebook: image', 'Still versions of the end card, for image ads.', [
+    ['meta/maps64-reel-1080x1920.png', 200], ['meta/maps64-feed-1080x1350.png', 240], ['meta/maps64-feed-1080x1080.png', 240]]],
+  ['Google Ads: animated banners', 'Uploaded image ads. All under 150 KB; they loop 3 times (28 s), within Google\'s 30 s limit. Shown at actual size.', [
+    ['google/banners/maps64-728x90.gif'], ['google/banners/maps64-970x250.gif'], ['google/banners/maps64-300x250.gif'], ['google/banners/maps64-336x280.gif'],
+    ['google/banners/maps64-300x600.gif'], ['google/banners/maps64-160x600.gif'], ['google/banners/maps64-320x50.gif'], ['google/banners/maps64-320x100.gif']]],
+  ['Google Ads: responsive display', 'Google asks for images without text; it adds your headlines itself. Plus the square and wide logo.', [
+    ['google/responsive/maps64-landscape-1200x628.png', 420], ['google/responsive/maps64-square-1200x1200.png', 280], ['google/responsive/maps64-portrait-960x1200.png', 224],
+    ['google/responsive/maps64-logo-1200x1200.png', 200], ['google/responsive/maps64-logo-1200x300.png', 400]]],
+  ['YouTube / Demand Gen', '16:9 video, 10 seconds, with sound, plus a thumbnail.', [
+    ['google/video/maps64-youtube-1920x1080.mp4', 560], ['google/video/maps64-youtube-1920x1080-thumbnail.png', 400]]],
+];
+const root = document.getElementById('sets');
+for (const [title, note, items] of SETS){
+  const sec = document.createElement('section');
+  sec.innerHTML = `<h2>${title}</h2><p>${note}</p><div class="grid"></div>`;
+  for (const [f, w] of items){
+    const fig = document.createElement('figure'), src = 'output/' + f, name = f.split('/').pop();
+    fig.innerHTML = (f.endsWith('.mp4') ? `<video src="${src}" controls loop playsinline preload="metadata" style="width:${w}px"></video>` : `<img src="${src}" alt="${name}"${w ? ` style="width:${w}px"` : ''}>`)
+      + `<figcaption><a href="${src}" download>${name}</a></figcaption>`;
+    sec.querySelector('.grid').appendChild(fig);
+  }
+  root.appendChild(sec);
+}
+</script>
+</body>
+</html>

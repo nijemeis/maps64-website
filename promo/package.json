@@ -1,0 +1,18 @@
+{
+  "name": "maps64-promo",
+  "private": true,
+  "type": "module",
+  "description": "Renders the Maps 64 promo videos, GIF banners and stills from the game's own art and synth",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "gifsicle": "^7.0.1",
+    "puppeteer-core": "^25.12.0"
+  },
+  "allowScripts": {
+    "ffmpeg-static@5.3.0": true,
+    "gifsicle@7.0.1": true
+  }
+}
