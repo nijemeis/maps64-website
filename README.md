@@ -69,3 +69,27 @@ weather effects); the format is documented at the top of the file. `SETS` groups
 Players pick a tune with the Music button or `N` in the game, or with "Use in game" on the
 Jukebox page (stored as `maps64.music`). Music plays in the menus, not during flights.
 When changing the files the service worker precaches, bump `CACHE` in `site/sw.js`.
+
+## Ads
+
+`site/ads.js` runs Google AdSense **H5 Games Ads**:
+
+- **Ad breaks** (`adBreak` type `next`) when the player leaves the end-of-level screen, after every
+  `everyLevels` (2) finished levels and at most one every `frequency`; Google decides whether to
+  actually show one. Music and input pause during the ad.
+- **Desktop-only banners** (728 × 90) under the game screen and on the Jukebox page. On phones and
+  tablets nothing is inserted.
+- If an ad blocker stops Google's script, the game simply carries on without ads.
+
+**Preview** without Google: open any page with `?ads=preview` (`?ads=off` ends it). The banner
+spaces show as dashed boxes and every ad break shows a stand-in.
+
+**Go-live checklist**
+1. AdSense account with maps64.com added and approved; apply for H5 Games Ads. Add a contact
+   email to `site/privacy.html`.
+2. Fill in `ADS_CONFIG` in `site/ads.js`: `client` (`ca-pub-…`) and the two display ad unit ids.
+   Keep `test: true` until Google has approved, then set it to `false`.
+3. Add `site/ads.txt`: `google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`
+4. Widen the Content-Security-Policy in `netlify.toml` so Google's ad scripts and frames load.
+5. In AdSense, Privacy & messaging: set up the European regulations (GDPR) consent message.
+6. Bump `CACHE` in `site/sw.js`.

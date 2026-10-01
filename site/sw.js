@@ -1,9 +1,9 @@
 /* Maps 64 service worker: network first, cache as fallback, so the game plays offline
    once loaded and an online visit always picks up the latest deploy. */
-const CACHE = 'maps64-v3';
+const CACHE = 'maps64-v4';
 const CORE = [
   './', 'index.html', 'jukebox.html', 'manifest.webmanifest',
-  'audio.js', 'vendor/d3.min.js', 'vendor/topojson-client.min.js', 'vendor/countries-50m.json',
+  'audio.js', 'ads.js', 'privacy.html', 'vendor/d3.min.js', 'vendor/topojson-client.min.js', 'vendor/countries-50m.json',
   'fonts/pixelify-400.woff2', 'fonts/pixelify-500.woff2',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
 ];

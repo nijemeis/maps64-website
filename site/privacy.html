@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1510">
+<title>Maps 64 Privacy</title>
+<meta name="description" content="What Maps 64 stores on your device, and how ads and cookies work on maps64.com.">
+<link rel="canonical" href="https://maps64.com/privacy.html">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<style>
+@font-face{font-family:"Pixelify Sans";font-weight:400;font-display:swap;src:url(fonts/pixelify-400.woff2) format("woff2")}
+@font-face{font-family:"Pixelify Sans";font-weight:500;font-display:swap;src:url(fonts/pixelify-500.woff2) format("woff2")}
+:root{--bg:#0d1510;--bg2:#15241a;--line:#2b4630;--text:#e3eed6;--muted:#93a88a;--faint:#62775b;--acc:#9ad26a;--acc-2:#c4ec9b}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100dvh;background:radial-gradient(120% 90% at 20% 0%,var(--bg2),var(--bg) 65%);color:var(--text);font-family:"Pixelify Sans",ui-monospace,monospace;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left))}
+a{color:var(--acc)} a:hover{color:var(--acc-2)}
+main{max-width:680px;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:24px}
+.brand{font-size:18px;font-weight:500;text-decoration:none;color:var(--text)}
+h1{font-weight:500;font-size:clamp(28px,7vw,40px);margin:0 0 6px}
+.date{color:var(--faint);font-size:13px;margin:0 0 24px}
+h2{font-weight:500;font-size:20px;margin:28px 0 8px}
+p,li{color:var(--muted);line-height:1.55}
+ul{padding-left:20px}
+code{font-family:ui-monospace,monospace;font-size:.9em;color:var(--text)}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><a class="brand" href="./">MAPS 64</a><a href="./">▶ Play the game</a></div>
+  <h1>Privacy</h1>
+  <p class="date">Last updated 1 October 2026</p>
+
+  <p>Maps 64 is a free browser game at maps64.com. There are no accounts and the game itself doesn't collect any personal data. This page explains what is stored on your device and how the ads work.</p>
+
+  <h2>Stored on your device</h2>
+  <p>The game keeps a few settings in your browser's local storage. They never leave your device:</p>
+  <ul>
+    <li><code>maps64.progress.v2</code>: your stars and best scores</li>
+    <li><code>maps64.sound</code>, <code>maps64.music</code>: sound on/off and your chosen tune</li>
+    <li><code>maps64.zoom</code>, <code>maps64.touch</code>: map size and touch pad setting</li>
+  </ul>
+  <p>The game also stores its own files in your browser so it works offline. You can remove all of this by clearing the site data for maps64.com in your browser.</p>
+
+  <h2>Ads</h2>
+  <p>Maps 64 is paid for by ads from Google AdSense. They appear between games and, on larger screens, in a banner below the game and on the Jukebox page.</p>
+  <p>Google and its partners use cookies and similar technologies to show ads, limit how often you see them and measure them. Where the law requires it, for example in the EU, EEA, UK and Switzerland, you are asked for consent first, and personalised ads are only shown if you agree. You can change your choice at any time with the privacy settings link that Google's consent message adds to the page.</p>
+  <ul>
+    <li><a href="https://policies.google.com/technologies/partner-sites" rel="noopener">How Google uses information from sites that use its services</a></li>
+    <li><a href="https://adssettings.google.com" rel="noopener">Google ad settings</a>, where you can turn off personalised ads</li>
+  </ul>
+
+  <h2>Hosting</h2>
+  <p>The site is hosted by Netlify, which processes standard server logs (such as IP addresses) to deliver and protect the site.</p>
+</main>
+</body>
+</html>

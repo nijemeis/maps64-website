@@ -16,6 +16,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preload" href="fonts/pixelify-400.woff2" as="font" type="font/woff2" crossorigin>
 <script src="audio.js"></script>
+<script src="ads.js"></script>
 <style>
 @font-face{font-family:"Pixelify Sans";font-weight:400;font-display:swap;src:url(fonts/pixelify-400.woff2) format("woff2")}
 @font-face{font-family:"Pixelify Sans";font-weight:500;font-display:swap;src:url(fonts/pixelify-500.woff2) format("woff2")}
@@ -61,6 +62,8 @@ li.on .play{background:var(--acc);color:var(--bg)}
 .use{font-size:12px;color:var(--acc);background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 9px;white-space:nowrap}
 .use:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
 .use[aria-pressed="true"]{color:var(--bg);background:var(--acc);border-color:var(--acc);cursor:default}
+.adslot{display:flex;justify-content:center;margin:26px 0 0}
+.adslot[hidden]{display:none}
 .foot{margin-top:30px;font-size:13px;color:var(--faint);line-height:1.5}
 @media (max-width:480px){ li{grid-template-columns:44px minmax(0,1fr);row-gap:8px} .play{width:44px;height:44px} .use{grid-column:2;justify-self:start} }
 </style>
@@ -79,7 +82,7 @@ li.on .play{background:var(--acc);color:var(--bg)}
   <p class="lead">The Maps 64 soundtrack: three themes with four arrangements each. The game's own chip synth plays them live in your browser. Pick one to use in the game.</p>
   <div id="sets"></div>
 
-  <p class="foot">Space plays or stops · ↑/↓ previous/next tune<br>All music is original and synthesised in the browser. Inspired by the sound of the C64.</p>
+  <p class="foot">Space plays or stops · ↑/↓ previous/next tune<br>All music is original and synthesised in the browser. Inspired by the sound of the C64. · <a href="privacy.html">Privacy</a></p>
 </main>
 <script>
 const $ = id => document.getElementById(id);
@@ -109,6 +112,8 @@ SETS.forEach(set => {
   });
   $('sets').appendChild(wrap);
 });
+// desktop banner between the first and second set
+{ const slot = document.createElement('div'); slot.className = 'adslot'; slot.hidden = true; $('sets').children[0].after(slot); Ads.banner(slot, 'jukebox'); }
 function paintUse(){
   let cur = null; try { cur = localStorage.getItem('maps64.music') || 'theme'; } catch(e){}
   TUNES.forEach((t, i) => { const b = rows[i].querySelector('.use'), on = t.id === cur; b.setAttribute('aria-pressed', on); b.textContent = on ? '✓ In the game' : 'Use in game'; });
