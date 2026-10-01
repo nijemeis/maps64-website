@@ -3,6 +3,9 @@
    (maps64.consent = granted | denied). Until a visitor accepts, Google only gets cookieless
    pings. Any element with [data-cookie-settings] reopens the bar. */
 const GTAG_ID = 'AW-18487562500';
+// set to true once the GDPR message in AdSense (Privacy & messaging) is published: Google's message
+// then asks for consent (and sets Consent Mode itself), and this bar stays hidden
+const USE_GOOGLE_CMP = false;
 
 window.dataLayer = window.dataLayer || [];
 function gtag(){ dataLayer.push(arguments); }
@@ -43,6 +46,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 </style>`);
 
 addEventListener('DOMContentLoaded', () => {
-  if (!Consent.get()) Consent.show();
-  document.querySelectorAll('[data-cookie-settings]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); Consent.show(); }));
+  if (!USE_GOOGLE_CMP && !Consent.get()) Consent.show();
+  document.querySelectorAll('[data-cookie-settings]').forEach(el => el.addEventListener('click', e => {
+    e.preventDefault();
+    if (USE_GOOGLE_CMP){ window.googlefc = window.googlefc || {}; (googlefc.callbackQueue = googlefc.callbackQueue || []).push(() => googlefc.showRevocationMessage()); }
+    else Consent.show();
+  }));
 });

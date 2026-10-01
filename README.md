@@ -88,15 +88,17 @@ Mode v2: everything starts denied, a small bar asks once (Accept / Decline, stor
   tablets nothing is inserted.
 - If an ad blocker stops Google's script, the game simply carries on without ads.
 
-**Preview** without Google: open any page with `?ads=preview` (`?ads=off` ends it). The banner
-spaces show as dashed boxes and every ad break shows a stand-in.
+**Preview** without Google: open any page with `?ads=preview`; the banner spaces show as dashed
+boxes and every ad break shows a stand-in. `?ads=test` uses Google's test ads instead (H5 test
+interstitials). `?ads=off` goes back to normal. Each mode lasts for that browser tab only.
 
 **Go-live checklist**
 1. AdSense account with maps64.com added and approved; apply for H5 Games Ads. Add a contact
    email to `site/privacy.html`.
-2. Fill in `ADS_CONFIG` in `site/ads.js`: `client` (`ca-pub-…`) and the two display ad unit ids.
-   Keep `test: true` until Google has approved, then set it to `false`.
-3. Add `site/ads.txt`: `google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`
-4. Widen the Content-Security-Policy in `netlify.toml` so Google's ad scripts and frames load.
-5. In AdSense, Privacy & messaging: set up the European regulations (GDPR) consent message.
-6. Bump `CACHE` in `site/sw.js`.
+2. ✓ `client` is `ca-pub-5351647549501846`, `ads.txt` and the verification meta tag are in place, the CSP allows
+   Google's ad domains. Still to do: the two display ad unit ids in `ADS_CONFIG.slots`.
+3. Check the real flow with `?ads=test` (Google's test ads, only in that tab); visitors never get test ads.
+4. In AdSense, Privacy & messaging: publish the European regulations (GDPR) message, then set
+   `USE_GOOGLE_CMP = true` in `site/consent.js` so Google's message replaces the site's own cookie bar.
+5. Turn Auto ads off for maps64.com in AdSense, so Google doesn't place extra ads over the game.
+6. Bump `CACHE` in `site/sw.js` whenever a precached file changes.
