@@ -1,6 +1,6 @@
 /* Maps 64 service worker: network first, cache as fallback, so the game plays offline
    once loaded and an online visit always picks up the latest deploy. */
-const CACHE = 'maps64-v4';
+const CACHE = 'maps64-v5';
 const CORE = [
   './', 'index.html', 'jukebox.html', 'manifest.webmanifest',
   'audio.js', 'ads.js', 'privacy.html', 'vendor/d3.min.js', 'vendor/topojson-client.min.js', 'vendor/countries-50m.json',
@@ -26,6 +26,8 @@ self.addEventListener('fetch', e => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true })
+      // Netlify links pages without .html (/jukebox), the cache has them as jukebox.html
+      .then(hit => hit || (req.mode === 'navigate' ? caches.match(new URL(req.url).pathname + '.html') : null))
       .then(hit => hit || (req.mode === 'navigate' ? caches.match('index.html') : Response.error())))
   );
 });
